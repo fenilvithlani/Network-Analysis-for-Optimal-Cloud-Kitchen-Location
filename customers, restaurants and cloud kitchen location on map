@@ -1,0 +1,55 @@
+import folium
+import pandas as pd
+from sklearn.cluster import KMeans
+
+df = pd.read_csv('Dataset.csv')
+
+X = df[['latitude_c', 'longitude_c']]
+kmeans = KMeans(n_clusters=5, random_state=0).fit(X)   # Cluster the customers using k-means clustering
+df['customer_cluster'] = kmeans.labels_
+
+customer_cluster_centers = kmeans.cluster_centers_  #centroids of the customer clusters
+
+# Find the 5 best locations for cloud kitchens
+kmeans = KMeans(n_clusters=5, init=customer_cluster_centers, n_init=1).fit(customer_cluster_centers)
+cloud_kitchen_locations = kmeans.cluster_centers_
+
+# Cluster the restaurants using k-means clustering
+Y = df[['latitude_r', 'longitude_r']]
+kmeans = KMeans(n_clusters=5, random_state=0).fit(Y)
+df['restaurant_cluster'] = kmeans.labels_
+
+# Get the centroids of the restaurant clusters
+restaurant_cluster_centers = kmeans.cluster_centers_
+
+# Create a map centered on the mean of the latitude and longitude of the customers
+map = folium.Map(location=[df['latitude_c'].mean(), df['longitude_c'].mean()], zoom_start=10)
+
+# Define colors for the customer clusters
+cluster_colors = ['blue', 'green', 'orange', 'purple', 'gray']
+
+# Add markers for the customers and connect them to the corresponding restaurant with colored lines
+for index, row in df.iterrows():
+    # Add a marker for the customer with the color corresponding to their cluster
+    customer_marker = folium.Marker(location=[row['latitude_c'], row['longitude_c']], icon=folium.Icon(color=cluster_colors[row['customer_cluster']]))
+    customer_marker.add_to(map)
+
+    # Add a line between the customer and the corresponding restaurant with the color green-grey
+    folium.PolyLine(locations=[(row['latitude_c'], row['longitude_c']), (row['latitude_r'], row['longitude_r'])], color='#667C3E', weight=2.5, opacity=0.7).add_to(map)
+
+    # Add a marker for the restaurant with the color red
+    restaurant_marker = folium.Marker(location=[row['latitude_r'], row['longitude_r']], icon=folium.Icon(color='red'))
+    restaurant_marker.add_to(map)
+
+# Add markers for the cloud kitchens with black color and labels
+for i in range(5):
+    cloud_kitchen_marker = folium.Marker(location=[cloud_kitchen_locations[i][0], cloud_kitchen_locations[i][1]], icon=folium.Icon(color='black'), tooltip=f'Cloud Kitchen {i+1}')
+    cloud_kitchen_marker.add_to(map)
+
+# Add markers for the restaurant centroids with white color and labels
+for i in range(5):
+    restaurant_center_marker = folium.Marker(location=[restaurant_cluster_centers[i][0], restaurant_cluster_centers[i][1]], icon=folium.Icon(color='white'), tooltip=f'Restaurant Center {i+1}')
+    restaurant_center_marker.add_to(map)
+
+# Display the map
+map
